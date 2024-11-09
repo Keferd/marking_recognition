@@ -7,6 +7,9 @@ import 'sample_feature/sample_item_list_view.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
 
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
   const MyApp({
