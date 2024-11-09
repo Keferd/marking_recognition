@@ -112,49 +112,62 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Распознавание маркировки')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isLoading)
-              const CircularProgressIndicator(), // Индикатор загрузки
-            if (!_isLoading && _image != null)
-              Column(
-                children: [
-                  Transform.rotate(
-                    angle: _rotationAngle * (3.14159 / 180), // Преобразование угла в радианы для отображения
-                    child: Image.file(
-                      _image!,
-                      width: 300,
-                      height: 300,
-                      fit: BoxFit.cover,
+      body: Padding(
+        padding: const EdgeInsets.only(top: 20.0), // Отступ сверху для всего содержимого
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              if (_isLoading)
+                const CircularProgressIndicator(), // Индикатор загрузки
+              if (!_isLoading && _image != null)
+                Column(
+                  children: [
+                    Transform.rotate(
+                      angle: _rotationAngle * (3.14159 / 180), // Преобразование угла в радианы для отображения
+                      child: Image.file(
+                        _image!,
+                        width: 300,
+                        height: 300,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      _uploadImage(); // Отправка изображения на сервер
-                    },
-                    child: const Text('Отправить на сервер'),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton(
-                        onPressed: _rotateLeft,
-                        child: const Text('Повернуть налево'),
-                      ),
-                      ElevatedButton(
-                        onPressed: _rotateRight,
-                        child: const Text('Повернуть направо'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            if (!_isLoading && _image == null)
-              const Text('Нажмите на кнопку ниже, чтобы сделать фотографию.'),
-          ],
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 30, // Радиус круга для кнопки поворота налево
+                          backgroundColor: Colors.blue,
+                          child: IconButton(
+                            icon: const Icon(Icons.rotate_left, color: Colors.white),
+                            onPressed: _rotateLeft,
+                          ),
+                        ),
+                        const SizedBox(width: 20), // Отступ между кнопками поворота
+                        CircleAvatar(
+                          radius: 30, // Радиус круга для кнопки поворота направо
+                          backgroundColor: Colors.blue,
+                          child: IconButton(
+                            icon: const Icon(Icons.rotate_right, color: Colors.white),
+                            onPressed: _rotateRight,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        _uploadImage(); // Отправка изображения на сервер
+                      },
+                      child: const Text('Отправить на сервер'),
+                    ),
+                  ],
+                ),
+              if (!_isLoading && _image == null)
+                const Text('Нажмите на кнопку ниже, чтобы сделать фотографию.'),
+            ],
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
