@@ -149,6 +149,7 @@ class ResultScreen extends StatelessWidget {
 
   Widget _buildDataCard(String title, String value, BuildContext context) {
     return Container(
+      width: double.infinity, // Занять всю ширину экрана
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
