@@ -134,7 +134,7 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
                   ),
                 ),
               if (_isLoading) 
-                const CircularProgressIndicator(), // Индикатор загрузки
+                const Center(child: CircularProgressIndicator()), // Индикатор загрузки по центру
               if (!_isLoading && _detalArtikul.isNotEmpty) ...[
                 _buildDataCard('Деталь Артикул', _detalArtikul, () => _copyToClipboard(_detalArtikul)),
                 _buildDataCard('Порядковый Номер', _poryadkovyyNomer, () => _copyToClipboard(_poryadkovyyNomer)),
