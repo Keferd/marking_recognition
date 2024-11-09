@@ -1,88 +1,155 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-
-import 'sample_feature/sample_item_details_view.dart';
-import 'sample_feature/sample_item_list_view.dart';
-import 'settings/settings_controller.dart';
-import 'settings/settings_view.dart';
-
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/services.dart'; // Для работы с буфером обмена
 
-/// The Widget that configures your application.
+
 class MyApp extends StatelessWidget {
-  const MyApp({
-    super.key,
-    required this.settingsController,
-  });
-
-  final SettingsController settingsController;
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Glue the SettingsController to the MaterialApp.
-    //
-    // The ListenableBuilder Widget listens to the SettingsController for changes.
-    // Whenever the user updates their settings, the MaterialApp is rebuilt.
-    return ListenableBuilder(
-      listenable: settingsController,
-      builder: (BuildContext context, Widget? child) {
-        return MaterialApp(
-          // Providing a restorationScopeId allows the Navigator built by the
-          // MaterialApp to restore the navigation stack when a user leaves and
-          // returns to the app after it has been killed while running in the
-          // background.
-          restorationScopeId: 'app',
+    return const MaterialApp(
+      home: PhotoCaptureScreen(),
+    );
+  }
+}
 
-          // Provide the generated AppLocalizations to the MaterialApp. This
-          // allows descendant Widgets to display the correct translations
-          // depending on the user's locale.
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [
-            Locale('en', ''), // English, no country code
-          ],
+class PhotoCaptureScreen extends StatefulWidget {
+  const PhotoCaptureScreen({super.key});
 
-          // Use AppLocalizations to configure the correct application title
-          // depending on the user's locale.
-          //
-          // The appTitle is defined in .arb files found in the localization
-          // directory.
-          onGenerateTitle: (BuildContext context) =>
-              AppLocalizations.of(context)!.appTitle,
+  @override
+  PhotoCaptureScreenState createState() => PhotoCaptureScreenState();
+}
 
-          // Define a light and dark color theme. Then, read the user's
-          // preferred ThemeMode (light, dark, or system default) from the
-          // SettingsController to display the correct theme.
-          theme: ThemeData(),
-          darkTheme: ThemeData.dark(),
-          themeMode: settingsController.themeMode,
+class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
+  File? _image;
+  String _detalArtikul = '';
+  String _poryadkovyyNomer = '';
+  String _detalNaimenovanie = '';
+  String _zakazNomer = '';
+  String _stanziyaBlok = '';
+  bool _isLoading = false; // Индикатор загрузки
 
-          // Define a function to handle named routes in order to support
-          // Flutter web url navigation and deep linking.
-          onGenerateRoute: (RouteSettings routeSettings) {
-            return MaterialPageRoute<void>(
-              settings: routeSettings,
-              builder: (BuildContext context) {
-                switch (routeSettings.name) {
-                  case SettingsView.routeName:
-                    return SettingsView(controller: settingsController);
-                  case SampleItemDetailsView.routeName:
-                    return const SampleItemDetailsView();
-                  case SampleItemListView.routeName:
-                  default:
-                    return const SampleItemListView();
-                }
-              },
-            );
-          },
-        );
-      },
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+
+    if (pickedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось выбрать изображение')));
+      return;
+    }
+
+    setState(() {
+      _image = File(pickedFile.path);
+      _isLoading = true; // Устанавливаем индикатор загрузки
+    });
+
+    // Отправка изображения на сервер
+    final uri = Uri.parse('http://10.0.2.2:8000/upload'); // Для эмулятора телефона
+
+    var request = http.MultipartRequest('POST', uri);
+    request.files.add(await http.MultipartFile.fromPath('file', _image!.path));
+
+    try {
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.toBytes();
+        final result = String.fromCharCodes(responseData);
+        Map<String, dynamic> jsonResponse = json.decode(result);
+
+        // Сохранение данных в переменные состояния
+        setState(() {
+          _detalArtikul = jsonResponse['ДетальАртикул'];
+          _poryadkovyyNomer = jsonResponse['ПорядковыйНомер'];
+          _detalNaimenovanie = jsonResponse['ДетальНаименование'];
+          _zakazNomer = jsonResponse['ЗаказНомер'];
+          _stanziyaBlok = jsonResponse['СтанцияБлок'];
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка при загрузке изображения: ${response.statusCode}')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка сети: $e')));
+    } finally {
+      setState(() {
+        _isLoading = false; // Сброс индикатора загрузки
+      });
+    }
+  }
+
+  void _copyToClipboard(String value) {
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Скопировано: $value')));
+  }
+
+  Widget _buildDataCard(String title, String value, Function() onTap) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blue[100],
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(color: Colors.grey.withOpacity(0.5), blurRadius: 5, spreadRadius: 1),
+        ],
+      ),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Text('$title: $value', style: const TextStyle(fontSize: 16)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Распознавание маркировки')),
+      body: Padding(
+        padding: const EdgeInsets.only(top: 16.0, left: 16.0), // Отступ сверху и слева
+        child: Center(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, // Выравнивание по левому краю
+            children: [
+              if (_image != null) 
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16), // Отступ снизу для изображения
+                  child: Image.file(
+                    _image!,
+                    width: 100, // Ширина изображения
+                    height: 100, // Высота изображения
+                    fit: BoxFit.cover, // Масштабирование изображения
+                  ),
+                ),
+              if (_isLoading) 
+                const CircularProgressIndicator(), // Индикатор загрузки
+              if (!_isLoading && _detalArtikul.isNotEmpty) ...[
+                _buildDataCard('Деталь Артикул', _detalArtikul, () => _copyToClipboard(_detalArtikul)),
+                _buildDataCard('Порядковый Номер', _poryadkovyyNomer, () => _copyToClipboard(_poryadkovyyNomer)),
+                _buildDataCard('Деталь Наименование', _detalNaimenovanie, () => _copyToClipboard(_detalNaimenovanie)),
+                _buildDataCard('Заказ Номер', _zakazNomer, () => _copyToClipboard(_zakazNomer)),
+                _buildDataCard('Станция Блок', _stanziyaBlok, () => _copyToClipboard(_stanziyaBlok)),
+              ],
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 20.0), // Отступ снизу для кнопки
+        child: FloatingActionButton(
+          onPressed: _pickAndUploadImage,
+          tooltip: 'Сделать фотографию', 
+          backgroundColor: Colors.blue,
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          child: const Icon(Icons.camera_alt), 
+        ),
+      ),
     );
   }
 }
