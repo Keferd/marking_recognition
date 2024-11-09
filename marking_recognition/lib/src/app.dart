@@ -48,7 +48,11 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
     });
 
     // Отправка изображения на сервер
-    final uri = Uri.parse('http://10.0.2.2:8000/upload'); // Для эмулятора телефона
+
+    // final uri = Uri.parse('http://10.0.2.2:8000/marking/load'); // Для эмулятора телефона
+    final uri = Uri.parse('http://192.168.0.100:8000/marking/load'); // Для эмулятора телефона
+    // final uri = Uri.parse('http://10.0.2.2:8000/upload'); // Для эмулятора телефона
+
 
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('file', _image!.path));
@@ -58,13 +62,18 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
 
       if (response.statusCode == 200) {
         final responseData = await response.stream.toBytes();
-        final result = String.fromCharCodes(responseData);
-        Map<String, dynamic> jsonResponse = json.decode(result);
+
+        // final result = String.fromCharCodes(responseData);
+
+        final decodedResponse = utf8.decode(responseData);
+        Map<String, dynamic> jsonResponse = json.decode(decodedResponse);
+
+
 
         // Сохранение данных в переменные состояния
         setState(() {
           _detalArtikul = jsonResponse['ДетальАртикул'];
-          _poryadkovyyNomer = jsonResponse['ПорядковыйНомер'];
+          _poryadkovyyNomer = jsonResponse['ПорядковыйНомер'].toString();
           _detalNaimenovanie = jsonResponse['ДетальНаименование'];
           _zakazNomer = jsonResponse['ЗаказНомер'];
           _stanziyaBlok = jsonResponse['СтанцияБлок'];
