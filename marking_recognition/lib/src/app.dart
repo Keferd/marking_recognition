@@ -25,7 +25,6 @@ class PhotoCaptureScreen extends StatefulWidget {
 
 class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   File? _image;
-  bool _isCircular = false; // Состояние чекбокса
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -49,9 +48,6 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
 
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('file', _image!.path));
-    
-    // Добавление значения чекбокса в запрос
-    request.fields['isCircular'] = _isCircular.toString();
 
     try {
       var response = await request.send();
@@ -94,20 +90,6 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
                     fit: BoxFit.cover, // Масштабирование изображения
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Checkbox(
-                        value: _isCircular,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            _isCircular = value ?? false;
-                          });
-                        },
-                      ),
-                      const Text('Маркировка круглая'),
-                    ],
-                  ),
                   ElevatedButton(
                     onPressed: () {
                       _uploadImage(); // Отправка изображения на сервер
