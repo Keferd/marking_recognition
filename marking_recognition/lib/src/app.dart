@@ -178,8 +178,10 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
           tooltip: 'Сделать фотографию',
           backgroundColor: Colors.blue,
           elevation: 6,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          child: const Icon(Icons.camera_alt),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          child: const Icon(Icons.camera_alt, color: Colors.white), // Белая иконка фотоаппарата
+          mini: false, // Убираем мини-режим для увеличения размера кнопки (по умолчанию false)
         ),
       ),
     );
@@ -222,16 +224,15 @@ class ResultScreen extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Center(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDataCard('Деталь Артикул', data['ДетальАртикул'], context),
-              _buildDataCard('Порядковый Номер', data['ПорядковыйНомер'].toString(), context),
-              _buildDataCard('Деталь Наименование', data['ДетальНаименование'], context),
-              _buildDataCard('Заказ Номер', data['ЗаказНомер'], context),
-              _buildDataCard('Станция Блок', data['СтанцияБлок'], context),
-            ],
-          ),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children:
+                  [
+            _buildDataCard('Деталь Артикул', data['ДетальАртикул'], context),
+            _buildDataCard('Порядковый Номер', data['ПорядковыйНомер'].toString(), context),
+            _buildDataCard('Деталь Наименование', data['ДетальНаименование'], context),
+            _buildDataCard('Заказ Номер', data['ЗаказНомер'], context),
+            _buildDataCard('Станция Блок', data['СтанцияБлок'], context),
+          ]),
         ),
       ),
     );
