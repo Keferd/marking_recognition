@@ -13,6 +13,7 @@ dependencies:
   flutter:
     sdk: flutter
   image_picker: ^0.8.4+4
+  flutter_launcher_icons: 0.13.1
   http: 1.2.0
   flutter_localizations:
     sdk: flutter
@@ -32,3 +33,8 @@ flutter:
   assets:
     # Add assets from the images directory to the application.
     - assets/images/
+
+flutter_icons:
+  image_path: 'assets/images/icon.png'
+  android: true
+  ios: true
