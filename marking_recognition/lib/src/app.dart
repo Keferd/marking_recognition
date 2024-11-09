@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart'; // Для работы с буфером обмена
 
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -26,14 +25,9 @@ class PhotoCaptureScreen extends StatefulWidget {
 
 class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   File? _image;
-  String _detalArtikul = '';
-  String _poryadkovyyNomer = '';
-  String _detalNaimenovanie = '';
-  String _zakazNomer = '';
-  String _stanziyaBlok = '';
-  bool _isLoading = false; // Индикатор загрузки
+  bool _isCircular = false; // Состояние чекбокса
 
-  Future<void> _pickAndUploadImage() async {
+  Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.camera);
 
@@ -44,58 +38,116 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
 
     setState(() {
       _image = File(pickedFile.path);
-      _isLoading = true; // Устанавливаем индикатор загрузки
     });
+  }
+
+  Future<void> _uploadImage() async {
+    if (_image == null) return;
 
     // Отправка изображения на сервер
-
-    // final uri = Uri.parse('http://10.0.2.2:8000/marking/load'); // Для эмулятора телефона
-    final uri = Uri.parse('http://192.168.0.100:8000/marking/load'); // Для эмулятора телефона
-    // final uri = Uri.parse('http://10.0.2.2:8000/upload'); // Для эмулятора телефона
-
+    final uri = Uri.parse('http://192.168.0.100:8000/marking/load'); // Укажите свой URL
 
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('file', _image!.path));
+    
+    // Добавление значения чекбокса в запрос
+    request.fields['isCircular'] = _isCircular.toString();
 
     try {
       var response = await request.send();
 
       if (response.statusCode == 200) {
         final responseData = await response.stream.toBytes();
-
-        // final result = String.fromCharCodes(responseData);
-
         final decodedResponse = utf8.decode(responseData);
         Map<String, dynamic> jsonResponse = json.decode(decodedResponse);
 
-
-
-        // Сохранение данных в переменные состояния
-        setState(() {
-          _detalArtikul = jsonResponse['ДетальАртикул'];
-          _poryadkovyyNomer = jsonResponse['ПорядковыйНомер'].toString();
-          _detalNaimenovanie = jsonResponse['ДетальНаименование'];
-          _zakazNomer = jsonResponse['ЗаказНомер'];
-          _stanziyaBlok = jsonResponse['СтанцияБлок'];
-        });
+        // Переход на экран результатов с полученными данными
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultScreen(data: jsonResponse),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка при загрузке изображения: ${response.statusCode}')));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка сети: $e')));
-    } finally {
-      setState(() {
-        _isLoading = false; // Сброс индикатора загрузки
-      });
     }
   }
 
-  void _copyToClipboard(String value) {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Распознавание маркировки')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_image != null) 
+              Column(
+                children: [
+                  Image.file(
+                    _image!,
+                    width: 300, // Ширина изображения
+                    height: 300, // Высота изображения
+                    fit: BoxFit.cover, // Масштабирование изображения
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: _isCircular,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            _isCircular = value ?? false;
+                          });
+                        },
+                      ),
+                      const Text('Маркировка круглая'),
+                    ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      _uploadImage(); // Отправка изображения на сервер
+                    },
+                    child: const Text('Отправить на сервер'),
+                  ),
+                ],
+              ),
+            if (_image == null)
+              const Text('Нажмите на кнопку ниже, чтобы сделать фотографию.'),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 20.0), // Отступ снизу для кнопки
+        child: FloatingActionButton(
+          onPressed: _pickImage,
+          tooltip: 'Сделать фотографию',
+          backgroundColor: Colors.blue,
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          child: const Icon(Icons.camera_alt),
+        ),
+      ),
+    );
+  }
+}
+
+class ResultScreen extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const ResultScreen({super.key, required this.data});
+
+  void _copyToClipboard(BuildContext context, String value) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Скопировано: $value')));
   }
 
-  Widget _buildDataCard(String title, String value, Function() onTap) {
+  Widget _buildDataCard(String title, String value, BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -107,7 +159,7 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
         ],
       ),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: () => _copyToClipboard(context, value),
         child: Text('$title: $value', style: const TextStyle(fontSize: 16)),
       ),
     );
@@ -116,47 +168,20 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Распознавание маркировки')),
+      appBar: AppBar(title: const Text('Результаты')),
       body: Padding(
-        padding: const EdgeInsets.only(top: 16.0, left: 16.0), // Отступ сверху и слева
+        padding: const EdgeInsets.all(16.0),
         child: Center(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, // Выравнивание по левому краю
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_image != null) 
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16), // Отступ снизу для изображения
-                  child: Image.file(
-                    _image!,
-                    width: 100, // Ширина изображения
-                    height: 100, // Высота изображения
-                    fit: BoxFit.cover, // Масштабирование изображения
-                  ),
-                ),
-              if (_isLoading) 
-                const Center(child: CircularProgressIndicator()), // Индикатор загрузки по центру
-              if (!_isLoading && _detalArtikul.isNotEmpty) ...[
-                _buildDataCard('Деталь Артикул', _detalArtikul, () => _copyToClipboard(_detalArtikul)),
-                _buildDataCard('Порядковый Номер', _poryadkovyyNomer, () => _copyToClipboard(_poryadkovyyNomer)),
-                _buildDataCard('Деталь Наименование', _detalNaimenovanie, () => _copyToClipboard(_detalNaimenovanie)),
-                _buildDataCard('Заказ Номер', _zakazNomer, () => _copyToClipboard(_zakazNomer)),
-                _buildDataCard('Станция Блок', _stanziyaBlok, () => _copyToClipboard(_stanziyaBlok)),
-              ],
-              const SizedBox(height: 20),
+              _buildDataCard('Деталь Артикул', data['ДетальАртикул'], context),
+              _buildDataCard('Порядковый Номер', data['ПорядковыйНомер'].toString(), context),
+              _buildDataCard('Деталь Наименование', data['ДетальНаименование'], context),
+              _buildDataCard('Заказ Номер', data['ЗаказНомер'], context),
+              _buildDataCard('Станция Блок', data['СтанцияБлок'], context),
             ],
           ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0), // Отступ снизу для кнопки
-        child: FloatingActionButton(
-          onPressed: _pickAndUploadImage,
-          tooltip: 'Сделать фотографию', 
-          backgroundColor: Colors.blue,
-          elevation: 6,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          child: const Icon(Icons.camera_alt), 
         ),
       ),
     );
