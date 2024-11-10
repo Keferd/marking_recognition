@@ -158,7 +158,7 @@ class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
                   ],
                 ),
               if (!_isLoading && _image == null)
-                const Text('Нажмите на кнопку ниже, чтобы сделать фотографию.'),
+                const Text('Нажмите на кнопку ниже,\nчтобы сделать фотографию.'),
             ],
           ),
         ),
