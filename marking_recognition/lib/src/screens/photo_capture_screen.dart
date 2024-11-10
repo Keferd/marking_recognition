@@ -3,195 +3,171 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'package:image/image.dart' as img; // Importing image library
+import 'package:image/image.dart' as img;
 import 'result_screen.dart';
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-
 class PhotoCaptureScreen extends StatefulWidget {
-  const PhotoCaptureScreen({super.key});
+  const PhotoCaptureScreen({Key? key}) : super(key: key);
 
   @override
-  PhotoCaptureScreenState createState() => PhotoCaptureScreenState();
+  State<PhotoCaptureScreen> createState() => _PhotoCaptureScreenState();
 }
 
-class PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
+class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   File? _image;
-  int _rotationAngle = 0; // Rotation angle in degrees
-  bool _isLoading = false; // Variable to track loading state
+  int _rotationAngle = 0;
+  bool _isLoading = false;
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+  // Обработчик выбора изображения из камеры или галереи
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
 
-    if (pickedFile == null) {
-      scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(content: Text('Не удалось выбрать изображение')));
-      return;
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+        _rotationAngle = 0;
+      });
+    } else {
+      _showSnackBar('Не удалось выбрать изображение');
     }
-
-    setState(() {
-      _image = File(pickedFile.path);
-      _rotationAngle = 0; // Reset rotation angle when a new image is selected
-    });
   }
 
   Future<void> _uploadImage() async {
     if (_image == null) return;
 
-    setState(() {
-      _isLoading = true; // Start loading
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Load and rotate image
-      final imageBytes = await _image!.readAsBytes();
-      img.Image originalImage = img.decodeImage(imageBytes)!;
-      img.Image rotatedImage = img.copyRotate(originalImage, angle: _rotationAngle); // Rotate by specified angle
-
-      // Save modified image to a temporary file
-      final rotatedFile = File('${(_image!.path)}_rotated.jpg');
-      await rotatedFile.writeAsBytes(img.encodeJpg(rotatedImage)); // Asynchronous write
-
-      // Send modified image to server
-      final uri = Uri.parse('http://192.168.0.100:8000/marking/load'); // Specify your URL
-      var request = http.MultipartRequest('POST', uri);
-      request.files.add(await http.MultipartFile.fromPath('file', rotatedFile.path));
-
-      var response = await request.send();
+      final rotatedImage = await _rotateImageAsync(_image!);
+      final response = await _sendImageToServer(rotatedImage);
 
       if (response.statusCode == 200) {
-          final responseData = await response.stream.toBytes();
-          final decodedResponse = utf8.decode(responseData);
-          Map<String, dynamic> jsonResponse = json.decode(decodedResponse);
-
-          // Store context in a local variable before async operation
-          final currentContext = context;
-
-        // Navigate to results screen with received data
-        if (mounted) { // Check if the widget is still mounted
+        final data = jsonDecode(utf8.decode(await response.stream.toBytes()));
+        if (mounted) {
           Navigator.push(
-            currentContext,
-            MaterialPageRoute(
-              builder: (context) => ResultScreen(data: jsonResponse),
-            ),
+            context,
+            MaterialPageRoute(builder: (context) => ResultScreen(data: data)),
           );
         }
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка при загрузке изображения: ${response.statusCode}')));
-        }
+        _showSnackBar('Ошибка при загрузке изображения: ${response.statusCode}');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка сети: $e')));
-      }
+      _showSnackBar('Ошибка сети: $e');
     } finally {
-      setState(() {
-        _isLoading = false; // End loading
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  void _rotateLeft() {
-    setState(() {
-      _rotationAngle -= 90; // Rotate left
-      if (_rotationAngle < 0) _rotationAngle += 360; // Ensure positive angle
-    });
+  Future<img.Image> _rotateImageAsync(File imageFile) async {
+    final imageBytes = await imageFile.readAsBytes();
+    final originalImage = img.decodeImage(imageBytes)!;
+    return img.copyRotate(originalImage, angle: _rotationAngle);
   }
 
-  void _rotateRight() {
-    setState(() {
-      _rotationAngle += 90; // Rotate right
-      if (_rotationAngle >= 360) _rotationAngle -= 360; // Ensure angle is within [0, 360)
-    });
+  Future<http.StreamedResponse> _sendImageToServer(img.Image rotatedImage) async {
+    final tempFile = await _createTempFile(rotatedImage);
+    final uri = Uri.parse('http://192.168.0.100:8000/marking/load');
+    var request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', tempFile.path));
+    return request.send();
+  }
+
+  Future<File> _createTempFile(img.Image rotatedImage) async {
+    final tempPath = '${_image!.path}_rotated.jpg';
+    final tempFile = File(tempPath);
+    await tempFile.writeAsBytes(img.encodeJpg(rotatedImage));
+    return tempFile;
+  }
+
+  void _rotateLeft() => setState(() => _rotationAngle = (_rotationAngle - 90) % 360);
+  void _rotateRight() => setState(() => _rotationAngle = (_rotationAngle + 90) % 360);
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
-    return ScaffoldMessenger(
-      key: scaffoldMessengerKey,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Распознавание маркировки')),
-        body: Padding(
-          padding: const EdgeInsets.only(top: 20.0), // Top padding for all content
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                if (_isLoading)
-                  const CircularProgressIndicator(), // Loading indicator
-                if (!_isLoading && _image != null)
-                  Column(
-                    children: [
-                      Transform.rotate(
-                        angle: _rotationAngle * (3.14159 / 180), // Convert angle to radians for display
-                        child: Image.file(
-                          _image!,
-                          width: 300,
-                          height: 300,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 30, // Radius for left rotation button
-                            backgroundColor: Colors.blue,
-                            child: IconButton(
-                              icon: const Icon(Icons.rotate_left, color: Colors.white),
-                              onPressed: _rotateLeft,
-                            ),
-                          ),
-                          const SizedBox(width: 20), // Space between rotation buttons
-                          CircleAvatar(
-                            radius: 30, // Radius for right rotation button
-                            backgroundColor: Colors.blue,
-                            child: IconButton(
-                              icon: const Icon(Icons.rotate_right, color: Colors.white),
-                              onPressed: _rotateRight,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox( 
-                        width: 250, // Increase width of send button
-                        height: 60, // Height of button
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _uploadImage(); // Send image to server
-                          },
-                          child: const Text('Отправить на сервер', style: TextStyle(fontSize: 18)), // Increase button text size
-                        ),
-                      ),
-                    ],
-                  ),
-                if (!_isLoading && _image == null)
-                  const Text('Нажмите на кнопку ниже,\nчтобы сделать фотографию.'),
-              ],
-            ),
-          ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Распознавание маркировки')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isLoading) const CircularProgressIndicator(),
+            if (!_isLoading && _image != null) ...[
+              _buildRotatedImage(),
+              const SizedBox(height: 20),
+              _buildRotationButtons(),
+              const SizedBox(height: 20),
+              _buildUploadButton(),
+            ],
+            if (!_isLoading && _image == null)
+              const Text('Выберите фото из галереи или сделайте фотографию.'),
+          ],
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: Padding(
-          padding: const EdgeInsets.only(bottom: 20.0), // Bottom padding for button
-          child: FloatingActionButton(
-            onPressed: _pickImage,
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () => _pickImage(ImageSource.camera),
             tooltip: 'Сделать фотографию',
-            backgroundColor: Colors.blue,
-            elevation: 6,
-            shape:
-                RoundedRectangleBorder(borderRadius:
-                    BorderRadius.circular(30)), // White camera icon
-            mini:
-                false,
-            child:
-                const Icon(Icons.camera_alt, color:
-                    Colors.white), 
+            child: const Icon(Icons.camera_alt),
           ),
-        ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            onPressed: () => _pickImage(ImageSource.gallery),
+            tooltip: 'Загрузить из галереи',
+            child: const Icon(Icons.photo_library),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRotatedImage() {
+    return Transform.rotate(
+      angle: _rotationAngle * (3.14159 / 180),
+      child: Image.file(
+        _image!,
+        width: 300,
+        height: 300,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+
+  Widget _buildRotationButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildRotationButton(Icons.rotate_left, _rotateLeft),
+        const SizedBox(width: 20),
+        _buildRotationButton(Icons.rotate_right, _rotateRight),
+      ],
+    );
+  }
+
+  Widget _buildRotationButton(IconData icon, VoidCallback onPressed) {
+    return CircleAvatar(
+      radius: 30,
+      backgroundColor: Colors.blue,
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildUploadButton() {
+    return SizedBox(
+      width: 250,
+      height: 60,
+      child: ElevatedButton(
+        onPressed: _uploadImage,
+        child: const Text('Отправить на сервер', style: TextStyle(fontSize: 18)),
       ),
     );
   }
